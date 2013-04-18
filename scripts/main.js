@@ -1,24 +1,12 @@
 (function () { 
     'use strict';
-	
-	require.config({
-		baseUrl: 'scripts',
-		paths: {
-			'jquery': 'libs/jquery',
-			'underscore': 'libs/underscore',
-			'backbone': 'libs/backbone',
-			'jquery': 'libs/jquery',
-			'class': 'utils/class',
-			'util': 'utils/util'
-		}
-	});
 
-	// 기본 라이브러리 로드
-	require(['jquery', 'underscore', 'config', 'ui'], function() {
-		if (typeof console === 'undefined') { this.console = { log: function() {} }; }
+    // 기본 라이브러리 로드
+    require(['jquery', 'underscore', 'backbone'], function() {
+        if (typeof console === 'undefined') { this.console = { log: function() {} }; }
 
-	});
-
+    });
+    	
 	window.requestAnimFrame = function () {
 		return window.requestAnimationFrame || 
 			window.webkitRequestAnimationFrame || 
@@ -132,5 +120,179 @@
 			return null;
 		};
 	});
+	
+	define('managers/routemanager', ['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
+	    var RouteManager = Backbone.Router.extend({
+	        initialize: function(options) {
+	            this.options = $.extend(true, {
+	                siteConfig: {},
+	                onRouteChange: function(app, route, path){}
+	            }, options);
+	            this.urls = [];
+	            this.parseSiteConfig(this.options.siteConfig);
+	        },
+	        destroy: function() {
+	            Backbone.history.stop();
+	        },
+	        getRouteInfoForPath: function(path) {
+	            return _.find(this.urls, function(url) {
+	                return url.url.test(path);
+	            });
+	        },
+	        parseSiteConfig: function(siteConfig) {
+	            var numAppsLoaded = 0,
+	               _this = this;
+	               
+	              _.each(siteConfig.apps, function(app) {
+	                  require([app.appClass], function(AppClass) {
+	                      app.appClass = AppClass;
+	                      numAppsLoaded++;
+	                      if (numAppsLoaded === siteConfig.apps.length) {
+	                          _.each(siteConfig.apps, function(app) {
+	                              _.each(app.routes, function(route) {
+	                                  _.each(route.urls, function(url) {
+	                                      var regEx = new RegExp(url);
+	                                      _this.urls.unshift({url: regEx, appClass: app.appClass, app: app, route: route});
+	                                      _this.route(regEx, app.name, function(path) {
+	                                          _this.options.onRouteChange(app, route, path);
+	                                      });
+	                                  });
+	                              });
+	                          });
+	                          
+	                          Backbone.history.start({pushState: true, hashChange: false});
+	                      }
+	                  });
+	              });
+	        }
+	    });
+	    
+	    return RouteManager;
+	});
+
+
+    define('app', ['jquery', 'underscore', 'backbone'], function($, _, Backbone) {
+        var AppModel = Backbone.Model.extend({
+            initialize: function() {
+                this.set('doc', $(document));
+                this.set('win', $(window));
+                this.set('body', $('body'));
+                
+                this.set('baseUrl', window.location.protocol + '//' + window.location.host + '/');
+            },
+            
+            getPageUrl: function() {
+                var loc = document.location;
+                return loc.protocol + '//' + loc.host + loc.pathname; 
+            },
+            
+            getScrollPosition: function() {
+                return window.pageYOffset || document.body.scrollTop;
+            },
+            
+            loadScript: function(url, symbol, callback) {
+                if (window[symbol]) { callback() }
+                else {
+                    require([url], function(s){ 
+                        callback(s);    
+                    });
+                }
+            },
+            
+            openPopup: function(url, width, height) {
+                width = width || 600;
+                height = height || 400;
+                
+                var winCoords = this.popupCoords(width, height);
+                window.open(
+                    url,
+                    '',
+                    '
+                    'menubar=no, toolbar=no, resizable=yes, scrollbars=yes, ' +
+                    'height=' + height + ', width=' + width + ', top=' + winCoords.top + ', left=' + winCoords.left
+                );
+            },
+            
+            popupCoords: function(w, h) {
+                var wLeft = window.screenLeft ? window.screenLeft : window.screenX;
+                var wTop = window.screenTop ? window.screenTop : window.screenY;
+                var wWidth = window.outerWidth ? window.outerWidth : document.documentElement.clientWidth;
+                var wHeight = window.outerHeight ? window.outerHeight : document.documentElement.clientHeight;
+    
+                return {
+                    left: wLeft + (wWidth / 2) - (w / 2),
+                    top: wTop + (wHeight / 2) - (h / 2) - 25
+                };
+            },
+            
+                
+            addCommas: function(nStr) {
+                nStr += '';
+                var x = nStr.split('.');
+                var x1 = x[0];
+                var x2 = x.length > 1 ? '.' + x[1] : '';
+                var rgx = /(\d+)(\d{3})/;
+                while (rgx.test(x1)) {
+                    x1 = x1.replace(rgx, '$1' + ',' + '$2');
+                }
+                return x1 + x2;
+            },
+            
+            lazyLoadImage: function(attrs) {
+                var hasLazyImage = false;
+                attrs || (attrs = {});
+                
+                var dataSrcAttr = attrs.dataSrcAttr || 'data-src',
+                    img = attrs.img,
+                    onError = attrs.onError || function(){};
+                    
+                $(img).each(function(index, el){
+                    var $el = $(el), dataSrc = $el.attr(dataSrcAttr), src = $el.attr('src');
+                    if (dataSrc && src !== dataSrc) {
+                        $el.removeAttr(dataSrcAttr).on('error', onError).attr('src', dataSrc);
+                        hasLazyImage = true;
+                    }
+                });
+                return hasLazyImage;
+            }
+            
+            requireSingleUseScript: function(script) {
+                return $.Deferred(function(defer) {
+                    require([script], function(view) {
+                        defer.resolveWith(this, [view]);
+                    }, function (err) {
+                        console.error('failed loading scripts', err);
+                        defer.rejectWith(this, err);
+                    });
+                }).always(_.bind(function() {
+                    // cleanup
+                    this.removeRequireModule(script);
+                }, this)).promise();
+            },
+            
+            getUrlParam : function(key) {
+                var s = decodeURI((new RegExp(key + '=' + '(.+?)(&|$)').exec(window.location.search)||[0,false])[1]);
+                if (s === 'false') {
+                    return false;
+                } else if (s === 'true') {
+                    return true;
+                }
+                return s;
+            }
+            
+        });
+        
+        return new AppModel();
+    });
+
+    define('appview', ['jquery', 'backbone', 'underscore'], function($, _, Backbone) {
+        var AppView = Backbone.View.extend({
+            el: 'body',
+            events: {},
+            initialize: function(options) {
+                
+            }
+        })
+    });
 
 }());
