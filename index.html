@@ -3,17 +3,33 @@
 	<head>
 		<meta charset="utf-8" />
 
-		<!-- Always force latest IE rendering engine (even in intranet) & Chrome Frame
-		Remove this if you use the .htaccess -->
-		<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
-
 		<title>index</title>
 		<meta name="description" content="" />
 		<meta name="author" content="comahead" />
-
-		<meta name="viewport" content="width=device-width; initial-scale=1.0" />
-
-		<script type="text/javascript" data-root="scripts" data-main="scripts/main" src="scripts/require.js"></script>
+		<script type="text/javascript">
+			window.require = {
+				baseUrl: 'scripts',
+				paths: {
+					'underscore': 'libs/underscore',
+					'jquery': 'libs/jquery',
+					'backbone': 'libs/backbone'
+				},
+				urlArgs: 't=' + new Date()
+			};
+			
+			window.site_config = {
+				FACEBOOk: {
+					APPID: '',
+					PERMISSIONS: 'user_about_me,user_groups,user_location,user_interests,user_events,user_likes,user_education_history,friends_about_me,friends_likes,publish_stream'
+				},
+				URLS: {
+					
+				}
+			};
+			
+			
+		</script>
+		<script type="text/javascript" data-root="scripts" data-main="main" src="scripts/libs/require.js"></script>
 	</head>
 
 	<body>
@@ -30,7 +46,7 @@
 				</p>
 			</nav>
 
-			<div>
+			<div id="content">
 
 			</div>
 
@@ -43,9 +59,13 @@
 		
 		<script type="text/javascript">
 			(function(){
-				/*jslint white: true, browser: true, onevar: true, undef: true, nomen: true, eqeqeq: true, plusplus: true, bitwise: true, regexp: true, newcap: true, immed: true, strict: true */
 				"use strict";
-				aa =1;
+				
+				require(['jquery'], function($) {
+					$("#content").html("hello world")
+				});
+				
+				
 			}());
 		</script>
 	</body>
